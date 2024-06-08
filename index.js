@@ -56,21 +56,29 @@ app.post('/register', async (req, res) => {
       displayName: displayName,
     });
 
-    // Simpan informasi tambahan pengguna ke Firestore
-    await addDoc(collection(db, 'users'), {
+    //User data untuk simpan ke firebase
+    const userData = {
       uid: user.uid,
       displayName: displayName,
       umur: umur,
       pekerjaan: pekerjaan,
-      namaInstansi: namaInstansi,
-      koleksiBuku: koleksiBuku
-    });
+      namaInstansi: namaInstansi
+    };
+
+    //Tampilkan koleksi buku jika ada
+    if (koleksiBuku) {
+      userData.koleksiBuku = koleksiBuku;
+    }
+
+    // Save informasi user ke Firestore
+    await addDoc(collection(db, 'users'), userData);
 
     res.status(201).send({ message: 'User created successfully', user });
   } catch (error) {
     res.status(400).send({ error: error.message });
   }
 });
+
 
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
@@ -100,14 +108,14 @@ app.post('/books', authenticate, async (req, res) => {
   try {
     const { isbn, price, genre, conditionDescription } = req.body;
 
-    // Get book information from Google Books API
+    // Ambil data buku dari Google Books API
     const response = await axios.get(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
     if (!response.data.items || response.data.items.length === 0) {
       return res.status(404).send({ error: 'Book not found' });
     }
     const bookData = response.data.items[0].volumeInfo;
 
-    // Save book to Firestore
+    // Save buku ke Firestore
     const docRef = await addDoc(collection(db, 'books'), {
       userId: req.user.uid,
       isbn: isbn,
@@ -127,7 +135,7 @@ app.post('/books', authenticate, async (req, res) => {
   }
 });
 
-// Route for fetching a single book from Firestore by its Firestore ID
+// Route untuk menampilkan buku berdasarkan id
 app.get('/books/:id', authenticate, async (req, res) => {
   try {
     const bookId = req.params.id;
@@ -160,7 +168,7 @@ app.get('/books/:id', authenticate, async (req, res) => {
 });
 
 
-// Route for fetching all books from Firestore
+// Route untuk tampil semua buku
 app.get('/books', authenticate, async (req, res) => {
   try {
     const booksSnapshot = await getDocs(collection(db, 'books'));
@@ -190,13 +198,13 @@ app.get('/books', authenticate, async (req, res) => {
   }
 });
 
-// Route for updating a book in Firestore
+//Update Buku
 app.put('/books/:id', authenticate, async (req, res) => {
   try {
     const bookId = req.params.id;
-    const { price, conditionDescription } = req.body; // Hanya field yang ingin diizinkan untuk diupdate
+    const { price, conditionDescription } = req.body;
 
-    // Get the existing book document
+    //Mengambil data buku yang sudah ada
     const bookRef = doc(db, 'books', bookId);
     const bookSnapshot = await getDoc(bookRef);
 
@@ -206,11 +214,11 @@ app.put('/books/:id', authenticate, async (req, res) => {
 
     const updatedData = {};
 
-    // Menyertakan field yang ingin diizinkan untuk diupdate
+    //Field yang ingin diizinkan untuk diupdate
     if (price) updatedData.price = price;
     if (conditionDescription) updatedData.conditionDescription = conditionDescription;
 
-    // Update book in Firestore
+    //Update buku ke Firestore
     await updateDoc(bookRef, updatedData);
 
     res.send({ message: 'Book updated successfully in Firebase Firestore' });
@@ -220,7 +228,7 @@ app.put('/books/:id', authenticate, async (req, res) => {
 });
 
 
-// Route for deleting a book from Firestore by its Firestore ID
+//Route untuk hapus buku berdasarka id
 app.delete('/books/:id', authenticate, async (req, res) => {
   try {
     const bookId = req.params.id;
@@ -232,18 +240,18 @@ app.delete('/books/:id', authenticate, async (req, res) => {
   }
 });
 
-// Endpoint untuk membuat percakapan baru
+//Endpoint untuk membuat percakapan baru
 app.post('/chats', authenticate, async (req, res) => {
   try {
     const { participants } = req.body;
 
-    // Buat percakapan baru dengan data pengguna yang berpartisipasi
+    //Buat percakapan baru dengan data pengguna yang berpartisipasi
     const chatData = {
       participants: participants,
       createdAt: new Date()
     };
 
-    // Simpan data percakapan ke dalam koleksi "chats" di Firestore
+    //Simpan data percakapan ke koleksi "chats" di Firestore
     const chatRef = await addDoc(collection(db, 'chats'), chatData);
 
     res.status(201).send({ message: 'Conversation created successfully', chatId: chatRef.id });
@@ -253,36 +261,59 @@ app.post('/chats', authenticate, async (req, res) => {
   }
 });
 
-// Endpoint untuk mengirim pesan baru
 app.post('/chats/:chatId/messages', authenticate, async (req, res) => {
-  try {
-    const { chatId } = req.params;
-    const { senderId, text } = req.body;
+  const { chatId } = req.params;
+  const { text } = req.body;
+  const senderId = req.user ? req.user.uid : null;
 
-    // Buat pesan baru dengan data yang diberikan
+  console.log('Chat ID:', chatId);
+  console.log('Text:', text);
+  console.log('Sender ID:', senderId);
+
+  if (!text || typeof text !== 'string') {
+    return res.status(400).send({ error: 'Message text is required and should be a string' });
+  }
+
+  if (!senderId) {
+    return res.status(400).send({ error: 'Sender ID is required' });
+  }
+
+  try {
+    const chatDoc = doc(db, 'chats', chatId);
+    const chatSnapshot = await getDoc(chatDoc);
+
+    if (!chatSnapshot.exists()) {
+      return res.status(404).send({ error: 'Chat not found' });
+    }
+
+    const chatData = chatSnapshot.data();
+
+    if (!chatData.participants.includes(senderId)) {
+      return res.status(403).send({ error: 'You are not a participant in this chat' });
+    }
+
     const messageData = {
-      senderId: senderId,
-      text: text,
+      senderId,
+      text,
       createdAt: new Date()
     };
 
-    // Simpan pesan ke dalam subkoleksi "messages" dalam dokumen percakapan
     const messagesRef = collection(db, 'chats', chatId, 'messages');
     await addDoc(messagesRef, messageData);
 
     res.status(201).send({ message: 'Message sent successfully' });
   } catch (error) {
-    console.error('Error sending message:', error);
+    console.error('Error sending message:', error.message, error.stack);
     res.status(500).send({ error: 'Failed to send message' });
   }
 });
 
-// Endpoint untuk mendapatkan pesan-pesan dalam suatu percakapan
+
+//Tampilkan history chat
 app.get('/chats/:chatId/messages', authenticate, async (req, res) => {
   try {
     const { chatId } = req.params;
 
-    // Ambil pesan-pesan dari subkoleksi "messages" dalam dokumen percakapan
     const messagesRef = collection(db, 'chats', chatId, 'messages');
     const querySnapshot = await getDocs(messagesRef);
 
@@ -303,12 +334,12 @@ app.get('/chats/:chatId/messages', authenticate, async (req, res) => {
   }
 });
 
-// Endpoint untuk mendapatkan profil pengguna
+//Endpoint untuk menampilkan profil dan buku
 app.get('/profile', authenticate, async (req, res) => {
   try {
     const userId = req.user.uid;
 
-    // Cari pengguna di Firestore berdasarkan uid
+    // Mencari pengguna di Firestore berdasarkan uid
     const usersRef = collection(db, 'users');
     const querySnapshot = await getDocs(usersRef);
     let userData = null;
@@ -324,7 +355,6 @@ app.get('/profile', authenticate, async (req, res) => {
       return res.status(404).send({ error: 'User not found' });
     }
 
-    // Atur urutan field sesuai keinginan Anda
     const orderedUserData = {
       uid: userData.uid,
       displayName: userData.displayName,
@@ -334,19 +364,38 @@ app.get('/profile', authenticate, async (req, res) => {
       koleksiBuku: userData.koleksiBuku      
     };
 
+    //Ambil buku-buku yang diunggah oleh pengguna
+    const booksRef = collection(db, 'books');
+    const booksQuerySnapshot = await getDocs(booksRef);
+    const userBooks = [];
+
+    booksQuerySnapshot.forEach((doc) => {
+      if (doc.data().userId === userId) {
+        userBooks.push({
+          id: doc.id,
+          title: doc.data().title,
+          author: doc.data().author,
+          isbn: doc.data().isbn,
+        });
+      }
+    });
+
+    // Menambahkan koleksi buku ke dalam profil pengguna
+    orderedUserData.userBooks = userBooks;
+
     res.send(orderedUserData);
   } catch (error) {
     res.status(500).send({ error: 'Failed to fetch user profile' });
   }
 });
 
-// Endpoint untuk memperbarui profil pengguna
+
+//Update user profile
 app.put('/profile', authenticate, async (req, res) => {
   try {
     const userId = req.user.uid;
-    const { displayName, umur, pekerjaan, namaInstansi, koleksiBuku } = req.body;
+    const { displayName, umur, pekerjaan, namaInstansi, koleksiBuku, password } = req.body;
 
-    // Cari pengguna di Firestore berdasarkan uid
     const usersRef = collection(db, 'users');
     const querySnapshot = await getDocs(usersRef);
     let userDocId = null;
@@ -361,7 +410,6 @@ app.put('/profile', authenticate, async (req, res) => {
       return res.status(404).send({ error: 'User not found' });
     }
 
-    // Perbarui informasi pengguna
     const userRef = doc(db, 'users', userDocId);
     const updatedData = {};
     if (displayName) updatedData.displayName = displayName;
@@ -370,6 +418,11 @@ app.put('/profile', authenticate, async (req, res) => {
     if (namaInstansi) updatedData.namaInstansi = namaInstansi;
     if (koleksiBuku) updatedData.koleksiBuku = koleksiBuku;
 
+    //Perbarui kata sandi
+    if (password) {
+      await admin.auth().updateUser(userId, { password: password });
+    }
+
     await updateDoc(userRef, updatedData);
 
     res.send({ message: 'User profile updated successfully' });
@@ -377,6 +430,7 @@ app.put('/profile', authenticate, async (req, res) => {
     res.status(500).send({ error: 'Failed to update user profile' });
   }
 });
+
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
