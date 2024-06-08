@@ -12,13 +12,13 @@ admin.initializeApp({
 });
 
 const firebaseConfig = {
-  apiKey: "-",
-  authDomain: "-",
-  projectId: "-",
-  storageBucket: "-",
-  messagingSenderId: "-",
-  appId: "-",
-  measurementId: "-"
+  apiKey: "AIzaSyAH5PD5HPuZCOeiYwjUPD9VMAEQicSmG8Y",
+  authDomain: "litswap-project.firebaseapp.com",
+  projectId: "litswap-project",
+  storageBucket: "litswap-project.appspot.com",
+  messagingSenderId: "357232983996",
+  appId: "1:357232983996:web:2e6ad86aa459e1fde535b9",
+  measurementId: "G-DDPRTXB3H2"
 };
 
 const firebaseApp = initializeApp(firebaseConfig);
@@ -56,7 +56,7 @@ app.post('/register', async (req, res) => {
       displayName: displayName,
     });
 
-    // Save additional user information to Firestore
+    // Simpan informasi tambahan pengguna ke Firestore
     await addDoc(collection(db, 'users'), {
       uid: user.uid,
       displayName: displayName,
@@ -71,7 +71,6 @@ app.post('/register', async (req, res) => {
     res.status(400).send({ error: error.message });
   }
 });
-
 
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
@@ -97,10 +96,9 @@ app.post('/google-login', async (req, res) => {
   }
 });
 
-// Route for adding a new book to Firestore using ISBN
 app.post('/books', authenticate, async (req, res) => {
   try {
-    const { isbn } = req.body;
+    const { isbn, price, genre, conditionDescription } = req.body;
 
     // Get book information from Google Books API
     const response = await axios.get(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
@@ -112,15 +110,15 @@ app.post('/books', authenticate, async (req, res) => {
     // Save book to Firestore
     const docRef = await addDoc(collection(db, 'books'), {
       userId: req.user.uid,
-  isbn: isbn,
-  title: bookData.title,
-  author: bookData.authors ? bookData.authors[0] : 'Unknown Author',
-  description: bookData.description || 'No Description Available',
-  year: bookData.publishedDate || 'Unknown Year',
-  price: bookData.price || 'Unknown Price',
-  synopsis: bookData.synopsis || 'No Synopsis Available',
-  genre: bookData.genre || 'Unknown Genre',
-  conditionDescription: bookData.conditionDescription || 'No Condition Description Available'
+      isbn: isbn,
+      title: bookData.title,
+      author: bookData.authors ? bookData.authors[0] : 'Unknown Author',
+      description: bookData.description || 'No Description Available',
+      year: bookData.publishedDate || 'Unknown Year',
+      price: price || 'Unknown Price',
+      synopsis: bookData.synopsis || 'No Synopsis Available',
+      genre: genre || 'Unknown Genre',
+      conditionDescription: conditionDescription || 'No Condition Description Available'
     });
 
     res.status(201).send({ message: 'Book added successfully to Firebase Firestore', bookId: docRef.id });
@@ -129,14 +127,30 @@ app.post('/books', authenticate, async (req, res) => {
   }
 });
 
-// Route for fetching all books from Firestore
+// Route for fetching a single book from Firestore by its Firestore ID
 app.get('/books/:id', authenticate, async (req, res) => {
   try {
     const bookId = req.params.id;
     const bookDoc = doc(db, 'books', bookId);
     const bookSnapshot = await getDoc(bookDoc);
+    
     if (bookSnapshot.exists()) {
-      res.send({ id: bookSnapshot.id, data: bookSnapshot.data() });
+      const bookData = bookSnapshot.data();
+      const sortedBookData = {
+        id: bookSnapshot.id,
+        userId: bookData.userId,
+        isbn: bookData.isbn,
+        title: bookData.title,
+        author: bookData.author,
+        description: bookData.description,
+        year: bookData.year,
+        price: bookData.price,
+        synopsis: bookData.synopsis,
+        genre: bookData.genre,
+        conditionDescription: bookData.conditionDescription
+      };
+
+      res.send(sortedBookData);
     } else {
       res.status(404).send({ error: 'Book not found' });
     }
@@ -151,64 +165,60 @@ app.get('/books', authenticate, async (req, res) => {
   try {
     const booksSnapshot = await getDocs(collection(db, 'books'));
     const books = [];
+
     booksSnapshot.forEach((doc) => {
-      books.push({ id: doc.id, data: doc.data() });
+      const bookData = doc.data();
+      const sortedBookData = {
+        id: doc.id,
+        userId: bookData.userId,
+        isbn: bookData.isbn,
+        title: bookData.title,
+        author: bookData.author,
+        description: bookData.description,
+        year: bookData.year,
+        price: bookData.price,
+        synopsis: bookData.synopsis,
+        genre: bookData.genre,
+        conditionDescription: bookData.conditionDescription
+      };
+      books.push(sortedBookData);
     });
+
     res.send(books);
   } catch (error) {
     res.status(500).send({ error: 'Failed to fetch books from Firebase Firestore' });
   }
 });
 
-// Route for fetching a single book from Firestore by its Firestore ID
-app.get('/books/:id', authenticate, async (req, res) => {
-  try {
-    const bookId = req.params.id;
-    const bookDoc = doc(db, 'books', bookId);
-    const bookSnapshot = await getDoc(bookDoc);
-    if (bookSnapshot.exists()) {
-      res.send({ id: bookSnapshot.id, data: bookSnapshot.data() });
-    } else {
-      res.status(404).send({ error: 'Book not found' });
-    }
-  } catch (error) {
-    res.status(500).send({ error: 'Failed to fetch book from Firebase Firestore' });
-  }
-});
-
-// Route for updating an existing book in Firestore using ISBN
+// Route for updating a book in Firestore
 app.put('/books/:id', authenticate, async (req, res) => {
   try {
     const bookId = req.params.id;
-    const { isbn, year, price, synopsis, genre, conditionDescription } = req.body;
+    const { price, conditionDescription } = req.body; // Hanya field yang ingin diizinkan untuk diupdate
 
-    // Get updated book information from Google Books API
-    const response = await axios.get(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
-    if (!response.data.items || response.data.items.length === 0) {
+    // Get the existing book document
+    const bookRef = doc(db, 'books', bookId);
+    const bookSnapshot = await getDoc(bookRef);
+
+    if (!bookSnapshot.exists()) {
       return res.status(404).send({ error: 'Book not found' });
     }
-    const bookData = response.data.items[0].volumeInfo;
+
+    const updatedData = {};
+
+    // Menyertakan field yang ingin diizinkan untuk diupdate
+    if (price) updatedData.price = price;
+    if (conditionDescription) updatedData.conditionDescription = conditionDescription;
 
     // Update book in Firestore
-    const bookRef = doc(db, 'books', bookId);
-    await updateDoc(bookRef, {
-      userId: req.user.uid,
-      isbn: isbn,
-      title: bookData.title,
-      author: bookData.authors ? bookData.authors[0] : 'Unknown Author',
-      description: bookData.description || 'No Description Available',
-      year: year || 'Unknown Year',
-      price: price || 'Unknown Price',
-      synopsis: synopsis || 'No Synopsis Available',
-      genre: genre || 'Unknown Genre',
-      conditionDescription: conditionDescription || 'No Condition Description Available'
-    });
+    await updateDoc(bookRef, updatedData);
 
     res.send({ message: 'Book updated successfully in Firebase Firestore' });
   } catch (error) {
     res.status(500).send({ error: 'Failed to update book in Firebase Firestore' });
   }
 });
+
 
 // Route for deleting a book from Firestore by its Firestore ID
 app.delete('/books/:id', authenticate, async (req, res) => {
@@ -222,18 +232,18 @@ app.delete('/books/:id', authenticate, async (req, res) => {
   }
 });
 
-// Endpoint to create a new conversation
+// Endpoint untuk membuat percakapan baru
 app.post('/chats', authenticate, async (req, res) => {
   try {
     const { participants } = req.body;
 
-    // Create a new conversation with participating user data
+    // Buat percakapan baru dengan data pengguna yang berpartisipasi
     const chatData = {
       participants: participants,
       createdAt: new Date()
     };
 
-    // Save the conversation data into the “chats” collection in Firestore
+    // Simpan data percakapan ke dalam koleksi "chats" di Firestore
     const chatRef = await addDoc(collection(db, 'chats'), chatData);
 
     res.status(201).send({ message: 'Conversation created successfully', chatId: chatRef.id });
@@ -243,67 +253,128 @@ app.post('/chats', authenticate, async (req, res) => {
   }
 });
 
-// Endpoint for sending new messages
+// Endpoint untuk mengirim pesan baru
 app.post('/chats/:chatId/messages', authenticate, async (req, res) => {
   try {
-    const { message } = req.body;
     const { chatId } = req.params;
-    const { uid } = req.user;
+    const { senderId, text } = req.body;
 
-    // Check if the user is included in the conversation participants
-    const chatDoc = doc(db, 'chats', chatId);
-    const chatSnapshot = await getDoc(chatDoc);
-    if (!chatSnapshot.exists()) {
-      return res.status(404).send({ error: 'Conversation not found' });
-    }
+    // Buat pesan baru dengan data yang diberikan
+    const messageData = {
+      senderId: senderId,
+      text: text,
+      createdAt: new Date()
+    };
 
-    const chatData = chatSnapshot.data();
-    if (!chatData.participants.includes(uid)) {
-      return res.status(403).send({ error: 'Unauthorized to send message in this conversation' });
-    }
+    // Simpan pesan ke dalam subkoleksi "messages" dalam dokumen percakapan
+    const messagesRef = collection(db, 'chats', chatId, 'messages');
+    await addDoc(messagesRef, messageData);
 
-    // Save message to Firestore collection
-    const messageRef = await addDoc(collection(db, `chats/${chatId}/messages`), {
-      senderId: uid,
-      message: message,
-      timestamp: new Date()
-    });
-
-    res.status(201).send({ message: 'Message sent successfully', messageId: messageRef.id });
+    res.status(201).send({ message: 'Message sent successfully' });
   } catch (error) {
     console.error('Error sending message:', error);
     res.status(500).send({ error: 'Failed to send message' });
   }
 });
 
-// Endpoint for retrieving message history in a conversation
+// Endpoint untuk mendapatkan pesan-pesan dalam suatu percakapan
 app.get('/chats/:chatId/messages', authenticate, async (req, res) => {
   try {
     const { chatId } = req.params;
-    const { uid } = req.user;
 
-    // Check if the user is included in the conversation participants
-    const chatDoc = doc(db, 'chats', chatId);
-    const chatSnapshot = await getDoc(chatDoc);
-    if (!chatSnapshot.exists()) {
-      return res.status(404).send({ error: 'Conversation not found' });
-    }
+    // Ambil pesan-pesan dari subkoleksi "messages" dalam dokumen percakapan
+    const messagesRef = collection(db, 'chats', chatId, 'messages');
+    const querySnapshot = await getDocs(messagesRef);
 
-    const chatData = chatSnapshot.data();
-    if (!chatData.participants.includes(uid)) {
-      return res.status(403).send({ error: 'Unauthorized to access messages in this conversation' });
-    }
-
-    // Retrieve message history in a conversation
-    const messagesSnapshot = await getDocs(collection(db, `chats/${chatId}/messages`));
     const messages = [];
-    messagesSnapshot.forEach((doc) => {
-      messages.push({ id: doc.id, data: doc.data() });
+    querySnapshot.forEach((doc) => {
+      messages.push({
+        id: doc.id,
+        senderId: doc.data().senderId,
+        text: doc.data().text,
+        createdAt: doc.data().createdAt.toDate()
+      });
     });
-    res.send(messages);
+
+    res.status(200).send(messages);
   } catch (error) {
-    console.error('Error fetching messages:', error);
-    res.status(500).send({ error: 'Failed to fetch messages' });
+    console.error('Error getting messages:', error);
+    res.status(500).send({ error: 'Failed to get messages' });
+  }
+});
+
+// Endpoint untuk mendapatkan profil pengguna
+app.get('/profile', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.uid;
+
+    // Cari pengguna di Firestore berdasarkan uid
+    const usersRef = collection(db, 'users');
+    const querySnapshot = await getDocs(usersRef);
+    let userData = null;
+
+    querySnapshot.forEach((doc) => {
+      if (doc.data().uid === userId) {
+        userData = doc.data();
+        userData.id = doc.id;
+      }
+    });
+
+    if (!userData) {
+      return res.status(404).send({ error: 'User not found' });
+    }
+
+    // Atur urutan field sesuai keinginan Anda
+    const orderedUserData = {
+      uid: userData.uid,
+      displayName: userData.displayName,
+      namaInstansi: userData.namaInstansi,
+      umur: userData.umur,
+      pekerjaan: userData.pekerjaan,
+      koleksiBuku: userData.koleksiBuku      
+    };
+
+    res.send(orderedUserData);
+  } catch (error) {
+    res.status(500).send({ error: 'Failed to fetch user profile' });
+  }
+});
+
+// Endpoint untuk memperbarui profil pengguna
+app.put('/profile', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.uid;
+    const { displayName, umur, pekerjaan, namaInstansi, koleksiBuku } = req.body;
+
+    // Cari pengguna di Firestore berdasarkan uid
+    const usersRef = collection(db, 'users');
+    const querySnapshot = await getDocs(usersRef);
+    let userDocId = null;
+
+    querySnapshot.forEach((doc) => {
+      if (doc.data().uid === userId) {
+        userDocId = doc.id;
+      }
+    });
+
+    if (!userDocId) {
+      return res.status(404).send({ error: 'User not found' });
+    }
+
+    // Perbarui informasi pengguna
+    const userRef = doc(db, 'users', userDocId);
+    const updatedData = {};
+    if (displayName) updatedData.displayName = displayName;
+    if (umur) updatedData.umur = umur;
+    if (pekerjaan) updatedData.pekerjaan = pekerjaan;
+    if (namaInstansi) updatedData.namaInstansi = namaInstansi;
+    if (koleksiBuku) updatedData.koleksiBuku = koleksiBuku;
+
+    await updateDoc(userRef, updatedData);
+
+    res.send({ message: 'User profile updated successfully' });
+  } catch (error) {
+    res.status(500).send({ error: 'Failed to update user profile' });
   }
 });
 
