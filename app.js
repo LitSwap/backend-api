@@ -2,7 +2,7 @@ const express = require('express');
 const admin = require('firebase-admin');
 const { initializeApp } = require('firebase/app');
 const { getAuth, signInWithEmailAndPassword } = require('firebase/auth');
-const { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, getDoc } = require('firebase/firestore');
+const { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, getDoc, query, where } = require('firebase/firestore');
 const axios = require('axios');
 const { body, validationResult } = require('express-validator');
 const multer = require('multer');
@@ -39,6 +39,7 @@ const app = express();
 app.use(express.json());
 
 const upload = multer({ storage: multer.memoryStorage() });
+
 
 // Middleware otentikasi
 const authenticate = async (req, res, next) => {
@@ -101,9 +102,14 @@ const validateAddBook = [
   }
 ];
 
+// Endpoint untuk root
+app.get('/', (req, res) => {
+  res.send('Hello, Litswap');
+});
+
 // Route untuk registrasi pengguna
 app.post('/register', validateRegister, async (req, res) => {
-  const { email, password, displayName, umur, pekerjaan, namaInstansi, koleksiBuku } = req.body;
+  const { email, password, displayName, umur, pekerjaan, namaInstansi } = req.body;
 
   try {
     const user = await admin.auth().createUser({
@@ -117,8 +123,7 @@ app.post('/register', validateRegister, async (req, res) => {
       displayName: displayName,
       umur: umur,
       pekerjaan: pekerjaan,
-      namaInstansi: namaInstansi,
-      koleksiBuku: koleksiBuku || []
+      namaInstansi: namaInstansi
     };
 
     await addDoc(collection(db, 'users'), userData);
@@ -145,49 +150,59 @@ app.post('/login', validateLogin, async (req, res) => {
 // Route untuk menambahkan buku
 app.post('/books', authenticate, upload.single('bookImage'), validateAddBook, async (req, res) => {
   const { isbn, price, genre, conditionDescription } = req.body;
+  const userId = req.user.uid;
+  
 
   try {
+    // Cek apakah buku dengan ISBN yang sama sudah ada dalam koleksi buku pengguna
+    const userBooksRef = collection(db, 'books');
+    const userBooksQuerySnapshot = await getDocs(query(userBooksRef, where('userId', '==', userId), where('isbn', '==', isbn)));
+
+    if (!userBooksQuerySnapshot.empty) {
+      return res.status(400).send({ error: 'You already have this book in your collection' });
+    }
+
+    // Ambil data buku dari Google Books API menggunakan ISBN
     const response = await axios.get(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`);
     if (!response.data.items || response.data.items.length === 0) {
-      return res.status(404).send({ error: 'Buku tidak ditemukan' });
+      return res.status(404).send({ error: 'Book not found' });
     }
 
     const bookData = response.data.items[0].volumeInfo;
 
-    // Unggah gambar ke Google Cloud Storage
+    // Unggah gambar ke Google Cloud Storage jika ada
     let imageUrl = null;
     if (req.file) {
-      try {
-        console.log('Memulai pengunggahan gambar ke Google Cloud Storage');
-        const blob = bucket.file(`bookImages/${Date.now()}_${req.file.originalname}`);
-        console.log('Referensi penyimpanan dibuat:', blob.name);
-        const blobStream = blob.createWriteStream();
+      const blob = bucket.file(`bookImages/${Date.now()}_${req.file.originalname}`);
+      const blobStream = blob.createWriteStream();
 
-        blobStream.on('error', (err) => {
-          console.error('Kesalahan saat mengunggah gambar ke Google Cloud Storage:', err);
-          return res.status(500).send({ error: 'Gagal mengunggah gambar ke Google Cloud Storage', details: err.message });
-        });
+      blobStream.on('error', (err) => {
+        console.error('Error uploading image to Google Cloud Storage:', err);
+        return res.status(500).send({ error: 'Failed to upload image to Google Cloud Storage', details: err.message });
+      });
 
-        blobStream.on('finish', async () => {
-          imageUrl = `https://storage.googleapis.com/${bucket.name}/${blob.name}`;
-          console.log('URL gambar diperoleh:', imageUrl);
+      blobStream.on('finish', async () => {
+        imageUrl = `https://storage.googleapis.com/${bucket.name}/${blob.name}`;
+        console.log('Image URL:', imageUrl);
 
-          const newBook = {
-            userId: req.user.uid,
-            isbn: isbn,
-            title: bookData.title,
-            author: bookData.authors ? bookData.authors[0] : 'Penulis Tidak Diketahui',
-            description: bookData.description || 'Deskripsi Tidak Tersedia',
-            year: bookData.publishedDate || 'Tahun Tidak Diketahui',
-            price: price || 'Harga Tidak Diketahui',
-            genre: genre || 'Genre Tidak Diketahui',
-            conditionDescription: conditionDescription || 'Deskripsi Kondisi Tidak Tersedia',
-            imageUrl: imageUrl || 'Gambar Tidak Tersedia'
-          };
+        // Tambahkan buku ke Firebase Firestore
+        const newBook = {
+          userId: userId,
+          isbn: isbn,
+          title: bookData.title,
+          author: bookData.authors ? bookData.authors[0] : 'Unknown Author',
+          description: bookData.description || 'Description Not Available',
+          year: bookData.publishedDate || 'Year Not Available',
+          price: price || 'Price Not Available',
+          genre: genre || 'Genre Not Available',
+          conditionDescription: conditionDescription || 'Condition Description Not Available',
+          imageUrl: imageUrl || 'Image Not Available'
+        };
 
+        try {
           const docRef = await addDoc(collection(db, 'books'), newBook);
           const responseBook = {
-            message: 'Buku berhasil ditambahkan ke Firebase Firestore',
+            message: 'Book added successfully to Firebase Firestore',
             book: {
               bookId: docRef.id,
               userId: newBook.userId,
@@ -203,49 +218,141 @@ app.post('/books', authenticate, upload.single('bookImage'), validateAddBook, as
             }
           };
           res.status(201).send(responseBook);
-        });
+        } catch (error) {
+          console.error('Error adding book to Firestore:', error);
+          res.status(500).send({ error: 'Failed to add book to Firebase Firestore', details: error.message });
+        }
+      });
 
-        blobStream.end(req.file.buffer);
-      } catch (storageError) {
-        console.error('Kesalahan saat mengunggah gambar ke Google Cloud Storage:', storageError);
-        return res.status(500).send({ error: 'Gagal mengunggah gambar ke Google Cloud Storage', details: storageError.message });
-      }
+      blobStream.end(req.file.buffer);
     } else {
+      // Jika tidak ada gambar yang diunggah
       const newBook = {
-        userId: req.user.uid,
+        userId: userId,
         isbn: isbn,
         title: bookData.title,
-        author: bookData.authors ? bookData.authors[0] : 'Penulis Tidak Diketahui',
-        description: bookData.description || 'Deskripsi Tidak Tersedia',
-        year: bookData.publishedDate || 'Tahun Tidak Diketahui',
-        price: price || 'Harga Tidak Diketahui',
-        genre: genre || 'Genre Tidak Diketahui',
-        conditionDescription: conditionDescription || 'Deskripsi Kondisi Tidak Tersedia',
-        imageUrl: 'Gambar Tidak Tersedia'
+        author: bookData.authors ? bookData.authors[0] : 'Unknown Author',
+        description: bookData.description || 'Description Not Available',
+        year: bookData.publishedDate || 'Year Not Available',
+        price: price || 'Price Not Available',
+        genre: genre || 'Genre Not Available',
+        conditionDescription: conditionDescription || 'Condition Description Not Available',
+        imageUrl: 'Image Not Available'
       };
 
-      const docRef = await addDoc(collection(db, 'books'), newBook);
-      const responseBook = {
-        message: 'Buku berhasil ditambahkan ke Firebase Firestore',
-        book: {
-          bookId: docRef.id,
-          userId: newBook.userId,
-          isbn: newBook.isbn,
-          title: newBook.title,
-          author: newBook.author,
-          description: newBook.description,
-          year: newBook.year,
-          price: newBook.price,
-          genre: newBook.genre,
-          conditionDescription: newBook.conditionDescription,
-          imageUrl: newBook.imageUrl
-        }
-      };
-      res.status(201).send(responseBook);
+      try {
+        const docRef = await addDoc(collection(db, 'books'), newBook);
+        const responseBook = {
+          message: 'Book added successfully to Firebase Firestore',
+          book: {
+            bookId: docRef.id,
+            userId: newBook.userId,
+            isbn: newBook.isbn,
+            title: newBook.title,
+            author: newBook.author,
+            description: newBook.description,
+            year: newBook.year,
+            price: newBook.price,
+            genre: newBook.genre,
+            conditionDescription: newBook.conditionDescription,
+            imageUrl: newBook.imageUrl
+          }
+        };
+        res.status(201).send(responseBook);
+      } catch (error) {
+        console.error('Error adding book to Firestore:', error);
+        res.status(500).send({ error: 'Failed to add book to Firebase Firestore', details: error.message });
+      }
     }
   } catch (error) {
-    console.error('Kesalahan saat menambahkan buku ke Firestore:', error);  // Log kesalahan
-    res.status(500).send({ error: 'Gagal menambahkan buku ke Firebase Firestore', details: error.message });
+    console.error('Error adding book:', error);
+    res.status(500).send({ error: 'Failed to add book', details: error.message });
+  }
+});
+
+// Route untuk menambah buku ke daftar favorit
+// Route untuk menambahkan buku favorit
+app.post('/favorite-books', authenticate, async (req, res) => {
+  const userId = req.user.uid;
+  const { bookId } = req.body;
+
+  try {
+    const usersRef = collection(db, 'users');
+    const querySnapshot = await getDocs(query(usersRef, where('uid', '==', userId)));
+    let userDocId = null;
+    let userData = null;
+
+    querySnapshot.forEach((doc) => {
+      if (doc.data().uid === userId) {
+        userDocId = doc.id;
+        userData = doc.data();
+      }
+    });
+
+    if (!userDocId) {
+      console.log(`User with UID ${userId} not found`);
+      return res.status(404).send({ error: 'User not found' });
+    }
+
+    const favoriteBooks = userData.favoriteBooks || [];
+    if (!favoriteBooks.includes(bookId)) {
+      favoriteBooks.push(bookId);
+    } else {
+      return res.status(400).send({ error: 'Book is already in favorites' });
+    }
+
+    await updateDoc(doc(db, 'users', userDocId), { favoriteBooks });
+
+    res.send({ message: 'Book added to favorites successfully' });
+  } catch (error) {
+    console.error('Error adding book to favorites:', error);
+    res.status(500).send({ error: 'Failed to add book to favorites' });
+  }
+});
+
+
+// Route untuk menampilkan buku favorit pengguna
+app.get('/favorite-books', authenticate, async (req, res) => {
+  const userId = req.user.uid;
+
+  try {
+    const usersRef = collection(db, 'users');
+    const querySnapshot = await getDocs(query(usersRef, where('uid', '==', userId)));
+    let userDocId = null;
+    let userData = null;
+
+    querySnapshot.forEach((doc) => {
+      if (doc.data().uid === userId) {
+        userDocId = doc.id;
+        userData = doc.data();
+      }
+    });
+
+    if (!userDocId) {
+      console.log(`User with UID ${userId} not found`);
+      return res.status(404).send({ error: 'User not found' });
+    }
+
+    const favoriteBooksIds = userData.favoriteBooks || [];
+    if (favoriteBooksIds.length === 0) {
+      return res.send([]);
+    }
+
+    const booksRef = collection(db, 'books');
+    const booksQuerySnapshot = await getDocs(query(booksRef, where('__name__', 'in', favoriteBooksIds)));
+
+    const favoriteBooks = [];
+    booksQuerySnapshot.forEach((doc) => {
+      favoriteBooks.push({
+        id: doc.id,
+        ...doc.data()
+      });
+    });
+
+    res.send(favoriteBooks);
+  } catch (error) {
+    console.error('Error fetching favorite books:', error);
+    res.status(500).send({ error: 'Failed to fetch favorite books' });
   }
 });
 
@@ -433,7 +540,6 @@ app.get('/profile', authenticate, async (req, res) => {
       namaInstansi: userData.namaInstansi,
       umur: userData.umur,
       pekerjaan: userData.pekerjaan,
-      koleksiBuku: userData.koleksiBuku      
     };
 
     const booksRef = collection(db, 'books');
@@ -460,13 +566,14 @@ app.get('/profile', authenticate, async (req, res) => {
 });
 
 // Route untuk memperbarui profil pengguna
+// Route untuk memperbarui profil pengguna
 app.put('/profile', authenticate, async (req, res) => {
   const userId = req.user.uid;
-  const { displayName, umur, pekerjaan, namaInstansi, koleksiBuku, password } = req.body;
+  const { displayName, umur, pekerjaan, namaInstansi, koleksiBuku, favoriteBooks, password } = req.body;
 
   try {
     const usersRef = collection(db, 'users');
-    const querySnapshot = await getDocs(usersRef);
+    const querySnapshot = await getDocs(query(usersRef, where('uid', '==', userId)));
     let userDocId = null;
 
     querySnapshot.forEach((doc) => {
@@ -476,6 +583,7 @@ app.put('/profile', authenticate, async (req, res) => {
     });
 
     if (!userDocId) {
+      console.log(`User with UID ${userId} not found`);
       return res.status(404).send({ error: 'User not found' });
     }
 
@@ -485,6 +593,7 @@ app.put('/profile', authenticate, async (req, res) => {
     if (pekerjaan) updateUser.pekerjaan = pekerjaan;
     if (namaInstansi) updateUser.namaInstansi = namaInstansi;
     if (koleksiBuku) updateUser.koleksiBuku = koleksiBuku;
+    if (favoriteBooks) updateUser.favoriteBooks = favoriteBooks;
 
     await updateDoc(doc(db, 'users', userDocId), updateUser);
 
@@ -495,6 +604,7 @@ app.put('/profile', authenticate, async (req, res) => {
 
     res.send({ message: 'Profile updated successfully' });
   } catch (error) {
+    console.error('Error updating profile:', error);
     res.status(500).send({ error: 'Failed to update profile' });
   }
 });
