@@ -16,10 +16,12 @@ This API consists of 5 main endpoints that have different functions including :
 3. Books
 4. Like Book
 5. Book barter system
-
+- - -
 ## Pre-Requisite
 * NodeJS v18.20.3
+- - -
+## How To Use 
 
-
+1. 
 
 
