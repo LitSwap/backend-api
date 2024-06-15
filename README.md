@@ -28,7 +28,7 @@ This API consists of 5 main endpoints that have different functions including :
    git clone https://github.com/LitSwap/backend-api.git
    ```
 ### 2. Prepare the environment
-   Before you can run the API, you need to prepare your environment. First you should create an    [.env] file to create a configuration file, which should look something like this :
+   Before you can run the API, you need to prepare your environment. First you should create an *.env* file to create a configuration file, which should look something like this :
    ```
    FIREBASE_API_KEY=
    FIREBASE_AUTH_DOMAIN=
@@ -42,7 +42,7 @@ This API consists of 5 main endpoints that have different functions including :
    MODEL_URL=
    ```
 ### 3. Setting up the project platform on firebase firestore and google cloud storage
-   To get the firebase configuration, you need to create a project in firebase. And get the configuration from the project settings and firebase admin sdk for file [serviceAccountKey.json]. And it also needs *bucketAccountKey.json* from google cloud storage to process the inputted image.
+   To get the firebase configuration, you need to create a project in firebase. And get the configuration from the project settings and firebase admin sdk for file *serviceAccountKey.json*. And it also needs *bucketAccountKey.json* from google cloud storage to process the inputted image.
 ### 4. Set up the module and some dependencies that need to be downloaded. 
 ```
 npm install
