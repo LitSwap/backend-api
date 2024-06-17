@@ -1,0 +1,389 @@
+{
+	"info": {
+		"_postman_id": "b3a370d8-1bef-4ac0-8abc-1b83383be158",
+		"name": "Litswap",
+		"schema": "https://schema.getpostman.com/json/collection/v2.0.0/collection.json",
+		"_exporter_id": "34802850"
+	},
+	"item": [
+		{
+			"name": "Register",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"email\": \"Test\",\r\n  \"password\": \"password123\",\r\n  \"displayName\": \"Test\",\r\n  \"umur\": 21,\r\n  \"pekerjaan\": \"Test\",\r\n  \"namaInstansi\": \"LitSwap\"\r\n}\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": "{{port}}/register"
+			},
+			"response": []
+		},
+		{
+			"name": "Login",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"email\": \"Test\",\r\n    \"password\": \"password123\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": "{{port}}/login"
+			},
+			"response": []
+		},
+		{
+			"name": "Profile",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"url": "{{port}}/profile"
+			},
+			"response": []
+		},
+		{
+			"name": "Update Profile",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"displayName\": \"Tes\",\r\n    \"umur\": 26,\r\n    \"pekerjaan\": \"CC\",\r\n    \"namaInstansi\": \"LitSwap\"\r\n}\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": "{{port}}/profile"
+			},
+			"response": []
+		},
+		{
+			"name": "Get allbooks",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": "{{port}}/books"
+			},
+			"response": []
+		},
+		{
+			"name": "Add Book",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "isbn",
+							"value": "9786230305528",
+							"type": "text"
+						},
+						{
+							"key": "price",
+							"value": "125.000",
+							"type": "text"
+						},
+						{
+							"key": "conditionDescription",
+							"value": "Good condition",
+							"type": "text"
+						},
+						{
+							"key": "bookImage",
+							"type": "file",
+							"src": "/D:/Bangkit Work/Capstone/img/sao 9786230305528.jpg"
+						}
+					]
+				},
+				"url": "{{port}}/books"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Book By ID",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"url": "{{port}}/books/{{bookId}}"
+			},
+			"response": []
+		},
+		{
+			"name": "Update Book",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"price\": 100000,\r\n    \"conditionDescription\": \"Good condition, slight wear on cover\"\r\n}\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": "{{port}}/books/{{bookId}}"
+			},
+			"response": []
+		},
+		{
+			"name": "Delete Book",
+			"request": {
+				"method": "DELETE",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"url": "{{port}}/books/{{bookId}}"
+			},
+			"response": []
+		},
+		{
+			"name": "Explore",
+			"request": {
+				"auth": {
+					"type": "jwt",
+					"jwt": {
+						"addTokenTo": "header",
+						"algorithm": "HS256",
+						"isSecretBase64Encoded": false,
+						"payload": "{}",
+						"headerPrefix": "Bearer",
+						"queryParamKey": "token",
+						"header": "{}"
+					}
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"url": "{{port}}/explore"
+			},
+			"response": []
+		},
+		{
+			"name": "Like Buku",
+			"request": {
+				"auth": {
+					"type": "jwt",
+					"jwt": {
+						"addTokenTo": "header",
+						"algorithm": "HS256",
+						"isSecretBase64Encoded": false,
+						"payload": "{}",
+						"headerPrefix": "Bearer",
+						"queryParamKey": "token",
+						"header": "{}"
+					}
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"url": "{{port}}/books/{{bookId}}/like"
+			},
+			"response": []
+		},
+		{
+			"name": "Notifikasi",
+			"request": {
+				"auth": {
+					"type": "jwt",
+					"jwt": {
+						"addTokenTo": "header",
+						"algorithm": "HS256",
+						"isSecretBase64Encoded": false,
+						"payload": "{}",
+						"headerPrefix": "Bearer",
+						"queryParamKey": "token",
+						"header": "{}"
+					}
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"url": "{{port}}/notifications/"
+			},
+			"response": []
+		},
+		{
+			"name": "ACC Like",
+			"request": {
+				"auth": {
+					"type": "jwt",
+					"jwt": {
+						"addTokenTo": "header",
+						"algorithm": "HS256",
+						"isSecretBase64Encoded": false,
+						"payload": "{}",
+						"headerPrefix": "Bearer",
+						"queryParamKey": "token",
+						"header": "{}"
+					}
+				},
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"url": "{{port}}/notifications/{{notifId}}/accept"
+			},
+			"response": []
+		},
+		{
+			"name": "Reject Like",
+			"request": {
+				"auth": {
+					"type": "jwt",
+					"jwt": {
+						"addTokenTo": "header",
+						"algorithm": "HS256",
+						"isSecretBase64Encoded": false,
+						"payload": "{}",
+						"headerPrefix": "Bearer",
+						"queryParamKey": "token",
+						"header": "{}"
+					}
+				},
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"url": "{{port}}/notifications/{{notifId}}/reject"
+			},
+			"response": []
+		},
+		{
+			"name": "Request Barter",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"selectedBookId\": \"{{bookId}}\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": "{{port}}/barter/{{notifId}}"
+			},
+			"response": []
+		},
+		{
+			"name": "ACC Barter",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "Bearer {{token}}",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"selectedBookId\": \"{{bookId}}\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": "{{port}}/barter/{{barterRequestId}}/accept"
+			},
+			"response": []
+		}
+	]
+}
