@@ -10,7 +10,7 @@ const { Storage } = require('@google-cloud/storage');
 require('dotenv').config();
 const FormData = require('form-data');
 const fs = require('fs');
-const appmlEndpoint = 'https://your-appml-deployment-url.com/process'; //link belum dikasih
+const appmlEndpoint = 'https://book-recommendation-dot-litswap-project.et.r.appspot.com/recommend'; //link belum dikasih
 
 const serviceAccount = require('./serviceAccountKey.json');
 
@@ -556,12 +556,13 @@ app.get('/explore', authenticate, async (req, res) => {
         });
 
         const recommendedBooks = response.data;
+        console.log('Eksplorasi buku berdasarkan rekomendasi');
 
         // Masukkan buku rekomendasi ke dalam awal daftar buku yang belum dilihat
         books = [...recommendedBooks, ...unseenBooks];
       } catch (error) {
-        console.error('Gagal mendapatkan rekomendasi dari appml.py:', error.message);
-        console.log('Eksplorasi buku dilakukan tanpa menggunakan appml.py');
+        console.error('Gagal mendapatkan rekomendasi dari book recomendation:', error.message);
+        console.log('Eksplorasi buku tidak berdasarkan rekomendasi');
         // Jika gagal mendapatkan rekomendasi, tetap gunakan daftar buku yang belum dilihat
       }
     }
