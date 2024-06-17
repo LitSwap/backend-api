@@ -9,12 +9,13 @@ cloud computing teams include:
 ## About API 
 Backend-API is an API that has functions to manage and process data related to book bartering. When making this API we used [NodeJS](https://nodejs.org/en/learn/getting-started/introduction-to-nodejs) with several other dependencies, namely [firebase](https://console.firebase.google.com/u/0/), multer, and axios. 
 
-This API consists of 5 main endpoints that have different functions including : 
+This API consists of 6 main endpoints that have different functions including : 
 1. Login & registration
 2. Profile
-3. Books
-4. Like Book
-5. Book barter system
+3. Explore
+4. Books
+5. Like Book
+6. Book barter system
 
 
 ## Pre-Requisite
