@@ -1,7 +1,7 @@
 runtime: nodejs18
 
 env_variables:
-  FIREBASE_API_KEY: " "
+  FIREBASE_API_KEY: ""
   FIREBASE_AUTH_DOMAIN: ""
   FIREBASE_PROJECT_ID: ""
   FIREBASE_STORAGE_BUCKET: ""
