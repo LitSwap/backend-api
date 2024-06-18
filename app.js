@@ -10,7 +10,7 @@ const { Storage } = require('@google-cloud/storage');
 require('dotenv').config();
 const FormData = require('form-data');
 const fs = require('fs');
-const appmlEndpoint = 'https://book-recommendation-dot-litswap-project.et.r.appspot.com/recommend'; 
+const appmlEndpoint = 'https://book-recommendation-dot-litswap-project.et.r.appspot.com/recommend'; //link belum dikasih
 
 const serviceAccount = require('./serviceAccountKey.json');
 
@@ -38,7 +38,7 @@ const storage = new Storage({
   keyFilename: './bucketAccountKey.json',
   projectId: process.env.FIREBASE_PROJECT_ID,
 });
-const bucket = storage.bucket('your-storage-bucket');
+const bucket = storage.bucket('books-litswap');
 
 const app = express();
 app.use(express.json());
@@ -516,7 +516,6 @@ app.get('/favorite_books', authenticate, async (req, res) => {
 
 
 
-// Route untuk explore buku
 app.get('/explore', authenticate, async (req, res) => {
   try {
     const booksRef = collection(db, 'books');
@@ -533,7 +532,7 @@ app.get('/explore', authenticate, async (req, res) => {
     let books = booksSnapshot.docs.map(doc => ({
       id: doc.id,
       userId: doc.data().userId,
-      ownerName: doc.data().ownerName, // Menambahkan ownerName ke data buku
+      ownerName: doc.data().ownerName,
       title: doc.data().title,
       author: doc.data().author,
       isbn: doc.data().isbn,
@@ -546,24 +545,49 @@ app.get('/explore', authenticate, async (req, res) => {
     // Prioritaskan buku yang belum dilihat
     const unseenBooks = books.filter(book => !viewedBooks.includes(book.id));
 
-    // Jika ada buku yang belum dilihat
     if (unseenBooks.length > 0) {
       try {
+        const favoriteBooks = unseenBooks.map(book => book.isbn);
+
         // Kirim permintaan ke appml.py untuk mendapatkan rekomendasi
         const response = await axios.post(appmlEndpoint, {
-          favorite_books: unseenBooks.map(book => book.isbn), // Kirim ISBN dari buku-buku yang belum dilihat
+          favorite_books: favoriteBooks,
           n_recommendations: 5,
         });
 
-        const recommendedBooks = response.data;
+        const recommendedIsbns = response.data;
+
+        // Ambil detail buku untuk setiap ISBN yang direkomendasikan
+        const recommendedBooksPromises = recommendedIsbns.map(async isbn => {
+          const recommendedBookQuery = query(booksRef, where('isbn', '==', isbn));
+          const recommendedBookSnapshot = await getDocs(recommendedBookQuery);
+          return recommendedBookSnapshot.docs.map(doc => ({
+            id: doc.id,
+            userId: doc.data().userId,
+            ownerName: doc.data().ownerName,
+            title: doc.data().title,
+            author: doc.data().author,
+            isbn: doc.data().isbn,
+            price: doc.data().price,
+            genre: doc.data().genre,
+            conditionDescription: doc.data().conditionDescription,
+            imageUrl: doc.data().imageUrl,
+          }))[0]; // Ambil buku pertama dari hasil pencarian
+        });
+
+        const recommendedBooks = await Promise.all(recommendedBooksPromises);
+
         console.log('Eksplorasi buku berdasarkan rekomendasi');
+        console.log('Rekomendasi ISBN:', recommendedBooks.map(book => book.isbn));
 
         // Masukkan buku rekomendasi ke dalam awal daftar buku yang belum dilihat
         books = [...recommendedBooks, ...unseenBooks];
       } catch (error) {
-        console.error('Gagal mendapatkan rekomendasi dari book recomendation:', error.message);
+        console.error('Gagal mendapatkan rekomendasi dari book recommendation');
+        if (error.response && error.response.data) {
+          console.error('Detail kesalahan:', error.response.data);
+        }
         console.log('Eksplorasi buku tidak berdasarkan rekomendasi');
-        // Jika gagal mendapatkan rekomendasi, tetap gunakan daftar buku yang belum dilihat
       }
     }
 
@@ -589,7 +613,6 @@ app.get('/explore', authenticate, async (req, res) => {
     res.status(500).send({ error: 'Gagal mengeksplorasi buku' });
   }
 });
-
 
 // Route untuk menyukai buku 
 app.post('/books/:bookId/like', authenticate, async (req, res) => {
