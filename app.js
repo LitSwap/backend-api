@@ -10,7 +10,7 @@ const { Storage } = require('@google-cloud/storage');
 require('dotenv').config();
 const FormData = require('form-data');
 const fs = require('fs');
-const appmlEndpoint = 'https://book-recommendation-dot-litswap-project.et.r.appspot.com/recommend'; //link belum dikasih
+const appmlEndpoint = 'https://book-recommendation-dot-litswap-project.et.r.appspot.com/recommend'; 
 
 const serviceAccount = require('./serviceAccountKey.json');
 
@@ -38,7 +38,7 @@ const storage = new Storage({
   keyFilename: './bucketAccountKey.json',
   projectId: process.env.FIREBASE_PROJECT_ID,
 });
-const bucket = storage.bucket('books-litswap');
+const bucket = storage.bucket('YOUR BUCKET STORAGE');
 
 const app = express();
 app.use(express.json());
